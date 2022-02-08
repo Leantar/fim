@@ -1,0 +1,79 @@
+syntax = "proto3";
+
+option go_package = "fim/proto";
+package fim;
+
+import "validate/validate.proto";
+
+service Fim {
+  //This section applies to the agent
+  rpc GetStartupInfo(Empty) returns (StartupInfo) {}
+  rpc CreateBaseline(stream FsObject) returns (Empty) {}
+  rpc UpdateBaseline(stream FsObject) returns (Empty) {}
+  rpc ReportFsStatus(stream FsObject) returns (Empty) {}
+  rpc ReportFsEvent(Event) returns (Empty) {}
+
+  // This section applies to the client
+  rpc GetAgents(Empty) returns(stream Agent) {}
+  rpc GetAlertsByAgent(EndpointName) returns (stream Alert) {}
+  rpc CreateBaselineUpdateApproval(EndpointName) returns (Empty) {}
+  rpc CreateAgentEndpoint(AgentEndpoint) returns (Empty) {}
+  rpc CreateClientEndpoint(ClientEndpoint) returns (Empty) {}
+  rpc DeleteEndpoint(EndpointName) returns (Empty) {}
+  rpc UpdateEndpointWatchedPaths(AgentEndpoint) returns (Empty) {}
+}
+
+message StartupInfo {
+  bool create_baseline = 1;
+  bool update_baseline = 2;
+  repeated string watched_paths = 3 [(validate.rules).repeated.unique = true];
+}
+
+message FsObject {
+  string path = 1 [(validate.rules).string = {max_len: 1024}];
+  string hash = 2 [(validate.rules).string.pattern = "^$|^[0-9a-fA-F]{64}$"];
+  int64 created = 3;
+  int64 modified = 4;
+  uint32 uid = 5;
+  uint32 gid = 6;
+  uint32 mode = 7;
+}
+
+message Event {
+  string kind = 1 [(validate.rules).string = {in: ["CREATE", "DELETE", "CHANGE"]}];
+  int64 issuedAt = 2;
+  FsObject fsObject = 3;
+}
+
+message Empty {}
+
+message Alert {
+  string kind = 1 [(validate.rules).string = {in: ["CREATE", "DELETE", "CHANGE"]}];
+  string difference = 2 [(validate.rules).string = {max_len: 1024}];
+  string path = 3 [(validate.rules).string = {max_len: 1024}];
+  int64 issuedAt = 4;
+}
+
+message Agent {
+  string name = 1;
+  bool hasBaseline = 2;
+  bool baselineIsCurrent = 3;
+  repeated string watched_paths = 4;
+}
+
+message EndpointName {
+  string name = 1 [(validate.rules).string = {max_len: 32}];
+}
+
+message ClientEndpoint {
+  string name = 1 [(validate.rules).string = {max_len: 32}];
+  repeated string roles = 3 [(validate.rules).repeated = {
+    min_items: 1,
+    unique: true,
+    items: {string:  {in: ["viewer", "approver", "user_admin"]}}}];
+}
+
+message AgentEndpoint {
+  string name = 1 [(validate.rules).string = {max_len: 32}];
+  repeated string watched_paths = 2 [(validate.rules).repeated.unique = true];
+}
